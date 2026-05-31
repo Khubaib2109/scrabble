@@ -237,6 +237,23 @@
   }
   .danger-text { color: var(--danger); font-weight: 800; }
   .ok-text { color: var(--ok); font-weight: 800; }
+
+  .tile-bag { display:grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap:7px; }
+  .tile-row {
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
+    background:#fff; border:1px solid var(--line); border-radius:12px; padding:7px 8px;
+    font-size:13px;
+  }
+  .tile-letter { font-weight:950; color:var(--ink); }
+  .tile-points { color:var(--muted); font-size:11px; }
+  .tile-count { font-weight:900; color:var(--ok); }
+  .tile-count.empty { color:var(--muted); }
+  .tile-count.warning { color:var(--danger); }
+  .bag-summary {
+    display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap;
+    background:#f7f2ff; border:1px solid rgba(91,47,185,.18); color:var(--accent);
+    border-radius:14px; padding:9px 10px; margin-bottom:10px; font-weight:850; font-size:13px;
+  }
   .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
   .tab { background:#fff; color:var(--ink); border:1px solid var(--line); box-shadow:none; }
   .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
@@ -281,7 +298,7 @@
 <header>
   <div class="brand">
     <h1>Scrabble Score Tracker</h1>
-    <p>Type letters onto the 15 × 15 board, or place a whole word from a starting square. The app applies letter and word bonuses, adds cross-words, rotates turns, and keeps each player’s score. It does not check whether a word is legal in the dictionary, because apparently that job still belongs to whoever is most annoying at the table.</p>
+    <p>Type letters onto the 15 × 15 board, or place a whole word from a starting square. The app uses the standard English Scrabble tile values and 100-tile distribution, applies letter and word bonuses, adds cross-words, rotates turns, and keeps each player’s score. It does not check whether a word is legal in the dictionary, because apparently that job still belongs to whoever is most annoying at the table.</p>
   </div>
   <div class="header-actions">
     <button id="helpBtn" class="secondary">How it works</button>
@@ -325,7 +342,8 @@
           <div class="field"><label>Start column</label><input id="colInput" type="number" min="1" max="15" value="8" /></div>
           <button id="placeWordBtn" style="align-self:end">Place word</button>
         </div>
-        <p style="color:var(--muted); line-height:1.45; margin-bottom:0;">Tip: click a square to set the starting position. You can also click an empty square and type letters one by one. Use <span class="kbd">Backspace</span> to remove a pending tile. Lowercase letters are treated as blank tiles worth 0.</p>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="blankMode" /> Next typed letter is a blank tile worth 0 points.</label>
+        <p style="color:var(--muted); line-height:1.45; margin-bottom:0;">Tip: click a square to set the starting position. You can also click an empty square and type letters one by one. Use <span class="kbd">Backspace</span> to remove a pending tile. To place a blank in the word box, put <span class="kbd">?</span> before the represented letter, e.g. <span class="kbd">HE?LLO</span>.</p>
       </div>
 
       <div id="tab-quick" class="tab-panel">
@@ -346,7 +364,6 @@
         <div id="playerEditor" class="settings-grid"></div>
         <div class="row" style="margin-top:10px">
           <button id="addPlayerBtn" class="secondary">Add player</button>
-          <button id="loadWorkbookBtn" class="secondary">Load workbook totals</button>
           <button id="newGameBtn" class="danger">New blank game</button>
         </div>
       </div>
@@ -358,6 +375,7 @@
           <label class="check"><input type="checkbox" id="enforceConnection" checked /> Later moves must connect to an existing tile.</label>
           <label class="check"><input type="checkbox" id="autoRotate" checked /> Automatically rotate to the next player after committing a move.</label>
           <label class="check"><input type="checkbox" id="saveLocal" checked /> Save this game in this browser automatically.</label>
+          <label class="check"><input type="checkbox" id="enforceTileBag" checked /> Prevent plays that exceed the official English 100-tile bag.</label>
         </div>
         <h3>Import saved JSON</h3>
         <textarea id="importBox" placeholder="Paste exported game JSON here"></textarea>
@@ -376,6 +394,12 @@
     </section>
 
     <section class="card panel">
+      <h2>Tile bag</h2>
+      <div id="bagSummary" class="bag-summary"></div>
+      <div id="tileBag" class="tile-bag"></div>
+    </section>
+
+    <section class="card panel">
       <h2>Move log</h2>
       <div id="moveLog" class="move-log"></div>
     </section>
@@ -387,27 +411,32 @@
     <h2>How to use this tracker</h2>
     <p><b>Board scoring:</b> click a square and type letters, or use the “Place word” form. Pending tiles are green. When the preview looks right, click <b>Commit scored move</b>.</p>
     <p><b>Premium squares:</b> letter/word multipliers apply only to newly placed tiles. Once a move is committed, those bonuses are consumed, just like physical Scrabble.</p>
-    <p><b>Scoring logic:</b> the app scores the main word, any cross-words created by new tiles, and adds the 50-point bingo bonus for 7+ new tiles. It does not validate dictionary legality, challenges, tile bag limits, or end-game rack deductions.</p>
-    <p><b>Workbook import:</b> I imported the players and existing totals from your spreadsheet. Because the spreadsheet does not store board coordinates, the board starts empty even when workbook totals are loaded.</p>
+    <p><b>Scoring logic:</b> the app scores the main word, any cross-words created by new tiles, and adds the 50-point bingo bonus for 7+ new tiles. The tile values and remaining-tile counts use the standard English Scrabble distribution: 100 tiles, including two blanks. It does not validate dictionary legality, challenges, or end-game rack deductions.</p>
+    <p><b>Blank tiles:</b> normal typed letters use their usual Scrabble value. To place a blank tile worth 0, tick “Next typed letter is a blank tile” or put <span class="kbd">?</span> before a letter in the word box.</p>
     <div class="row"><button id="closeHelpBtn">Got it</button></div>
   </div>
 </dialog>
 
-<dialog id="importedDialog">
-  <div class="modal-body">
-    <h2>Workbook data imported</h2>
-    <p>The original workbook contained these totals. You can load them as starting scores, or start a blank game with the same players.</p>
-    <div id="importedSummary"></div>
-    <div class="row" style="margin-top:14px"><button id="modalLoadWorkbook">Load workbook totals</button><button id="modalBlank" class="secondary">Start blank instead</button><button id="modalClose" class="secondary">Keep current</button></div>
-  </div>
-</dialog>
 
 <script>
 'use strict';
-const IMPORTED = {"players": [{"name": "Khubaib", "score": 213}, {"name": "Grace", "score": 134}, {"name": "Oliver", "score": 148}, {"name": "Prath", "score": 0}, {"name": "Kelly", "score": 0}], "moves": [{"turn": 1, "entries": [{"player": "Khubaib", "word": "Privy", "score": 34}, {"player": "Grace", "word": "Gay", "score": 7}, {"player": "Oliver", "word": "Rare", "score": 5}]}, {"turn": 2, "entries": [{"player": "Khubaib", "word": "Doubter", "score": 20}, {"player": "Grace", "word": "Dew", "score": 14}, {"player": "Oliver", "word": "Via", "score": 6}]}, {"turn": 3, "entries": [{"player": "Khubaib", "word": "Now", "score": 12}, {"player": "Grace", "word": "Gran", "score": 9}, {"player": "Oliver", "word": "Oboe", "score": 7}]}, {"turn": 4, "entries": [{"player": "Khubaib", "word": "Risk", "score": 18}, {"player": "Grace", "word": "Kin", "score": 7}, {"player": "Oliver", "word": "Sail", "score": 8}]}, {"turn": 5, "entries": [{"player": "Khubaib", "word": "Find", "score": 20}, {"player": "Grace", "word": "Scrap", "score": 11}, {"player": "Oliver", "word": "Dine", "score": 15}]}, {"turn": 6, "entries": [{"player": "Khubaib", "word": "Plazas", "score": 34}, {"player": "Grace", "word": "Spits", "score": 16}, {"player": "Oliver", "word": "Fame", "score": 18}]}, {"turn": 7, "entries": [{"player": "Khubaib", "word": "Whose", "score": 14}, {"player": "Grace", "word": "Grant", "score": 12}, {"player": "Oliver", "word": "Jig", "score": 27}]}, {"turn": 8, "entries": [{"player": "Khubaib", "word": "Ab", "score": 13}, {"player": "Grace", "word": "Ex", "score": 25}, {"player": "Oliver", "word": "Hot", "score": 9}]}, {"turn": 9, "entries": [{"player": "Khubaib", "word": "Dew", "score": 7}, {"player": "Grace", "word": "Toga", "score": 7}, {"player": "Oliver", "word": "Lute", "score": 12}]}, {"turn": 10, "entries": [{"player": "Khubaib", "word": "Teen", "score": 12}, {"player": "Grace", "word": "Acer", "score": 9}, {"player": "Oliver", "word": "Rev", "score": 18}]}, {"turn": 11, "entries": [{"player": "Khubaib", "word": "Lie", "score": 5}, {"player": "Grace", "word": "Me", "score": 10}, {"player": "Oliver", "word": "Ate", "score": 4}]}, {"turn": 12, "entries": [{"player": "Khubaib", "word": "Ole", "score": 3}, {"player": "Grace", "word": "Nate", "score": 5}, {"player": "Oliver", "word": "Do", "score": 3}]}, {"turn": 13, "entries": [{"player": "Khubaib", "word": "Qi", "score": 21}, {"player": "Grace", "word": "Us", "score": 2}, {"player": "Oliver", "word": "Teeny", "score": 16}]}]};
+const IMPORTED = { players: [], moves: [] };
 const SIZE = 15;
 const CENTER = '7,7';
-const TILE_VALUES = { A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10 };
+const STORAGE_KEY = 'scrabble-score-tracker-state-v4';
+const LEGACY_STORAGE_KEYS = ['scrabble-score-tracker-state', 'scrabble-score-tracker-state-v2', 'scrabble-score-tracker-state-v3'];
+const TILE_DISTRIBUTION = {
+  BLANK: { label: 'Blank', count: 2, score: 0 },
+  A: { count: 9, score: 1 }, B: { count: 2, score: 3 }, C: { count: 2, score: 3 }, D: { count: 4, score: 2 },
+  E: { count: 12, score: 1 }, F: { count: 2, score: 4 }, G: { count: 3, score: 2 }, H: { count: 2, score: 4 },
+  I: { count: 9, score: 1 }, J: { count: 1, score: 8 }, K: { count: 1, score: 5 }, L: { count: 4, score: 1 },
+  M: { count: 2, score: 3 }, N: { count: 6, score: 1 }, O: { count: 8, score: 1 }, P: { count: 2, score: 3 },
+  Q: { count: 1, score: 10 }, R: { count: 6, score: 1 }, S: { count: 4, score: 1 }, T: { count: 6, score: 1 },
+  U: { count: 4, score: 1 }, V: { count: 2, score: 4 }, W: { count: 2, score: 4 }, X: { count: 1, score: 8 },
+  Y: { count: 2, score: 4 }, Z: { count: 1, score: 10 }
+};
+const TILE_VALUES = Object.fromEntries(Object.entries(TILE_DISTRIBUTION).filter(([letter]) => letter !== 'BLANK').map(([letter, data]) => [letter, data.score]));
+const TOTAL_TILES = Object.values(TILE_DISTRIBUTION).reduce((sum, data) => sum + data.count, 0);
 const PREMIUMS = new Map();
 function setPremium(type, coords) { coords.forEach(([r,c]) => PREMIUMS.set(`${r},${c}`, type)); }
 setPremium('tw', [[0,0],[0,7],[0,14],[7,0],[7,14],[14,0],[14,7],[14,14]]);
@@ -418,21 +447,23 @@ setPremium('dl', [[0,3],[0,11],[2,6],[2,8],[3,0],[3,7],[3,14],[6,2],[6,6],[6,8],
 const els = {
   board: document.getElementById('board'), activePlayer: document.getElementById('activePlayer'), scoreboard: document.getElementById('scoreboard'),
   scorePreview: document.getElementById('scorePreview'), previewStatus: document.getElementById('previewStatus'), breakdown: document.getElementById('breakdown'),
-  moveLog: document.getElementById('moveLog'), playerEditor: document.getElementById('playerEditor'), wordInput: document.getElementById('wordInput'),
+  moveLog: document.getElementById('moveLog'), tileBag: document.getElementById('tileBag'), bagSummary: document.getElementById('bagSummary'),
+  playerEditor: document.getElementById('playerEditor'), wordInput: document.getElementById('wordInput'),
   rowInput: document.getElementById('rowInput'), colInput: document.getElementById('colInput'), directionInput: document.getElementById('directionInput'),
   quickWord: document.getElementById('quickWord'), quickScore: document.getElementById('quickScore'), importBox: document.getElementById('importBox'),
-  enforceCenter: document.getElementById('enforceCenter'), enforceConnection: document.getElementById('enforceConnection'), autoRotate: document.getElementById('autoRotate'), saveLocal: document.getElementById('saveLocal')
+  enforceCenter: document.getElementById('enforceCenter'), enforceConnection: document.getElementById('enforceConnection'), autoRotate: document.getElementById('autoRotate'),
+  saveLocal: document.getElementById('saveLocal'), enforceTileBag: document.getElementById('enforceTileBag'), blankMode: document.getElementById('blankMode')
 };
 
-let state = createBlankState(false);
+let state = createBlankState();
 let selected = { r: 7, c: 7 };
 let lastPreview = null;
 
 function createEmptyBoard() {
   return Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => ({ letter: '', blank: false, committed: false })));
 }
-function createBlankState(useImportedNames = true) {
-  const names = useImportedNames ? IMPORTED.players.map(p => p.name) : ['Player 1', 'Player 2'];
+function createBlankState() {
+  const names = ['Player 1', 'Player 2'];
   return {
     players: names.map(n => ({ name: n, score: 0 })),
     active: 0,
@@ -440,7 +471,7 @@ function createBlankState(useImportedNames = true) {
     moves: [],
     history: [],
     createdAt: new Date().toISOString(),
-    settings: { enforceCenter: true, enforceConnection: true, autoRotate: true, saveLocal: true }
+    settings: { enforceCenter: true, enforceConnection: true, autoRotate: true, saveLocal: true, enforceTileBag: true }
   };
 }
 function cloneState(obj = state) { return JSON.parse(JSON.stringify(obj)); }
@@ -459,9 +490,25 @@ function pendingCoords() {
 function safeName(i) { return state.players[i]?.name || `Player ${i+1}`; }
 function currentPlayer() { return state.players[state.active] || state.players[0]; }
 function premiumLabel(type) { return {tw:'TW', dw:'DW', tl:'TL', dl:'DL'}[type] || ''; }
-function baseLetterScore(cell) { return cell.blank ? 0 : (TILE_VALUES[cell.letter] || 0); }
+function baseLetterScore(cell) {
+  if (!cell || !cell.letter) return 0;
+  if (cell.blank === true) return 0;
+  return TILE_VALUES[String(cell.letter).toUpperCase()] || 0;
+}
 function isLetter(ch) { return /^[a-zA-Z]$/.test(ch); }
 function sanitiseWord(word) { return (word || '').replace(/[^a-zA-Z]/g, ''); }
+function parseWordTiles(raw) {
+  const tiles = [];
+  let blankNext = false;
+  for (const ch of String(raw || '')) {
+    if (ch === '?' || ch === '*') { blankNext = true; continue; }
+    if (isLetter(ch)) {
+      tiles.push({ letter: ch.toUpperCase(), blank: blankNext });
+      blankNext = false;
+    }
+  }
+  return tiles;
+}
 function escapeHTML(str) { return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 function syncSettingsToState() {
@@ -469,6 +516,7 @@ function syncSettingsToState() {
   state.settings.enforceConnection = els.enforceConnection.checked;
   state.settings.autoRotate = els.autoRotate.checked;
   state.settings.saveLocal = els.saveLocal.checked;
+  state.settings.enforceTileBag = els.enforceTileBag.checked;
 }
 function syncSettingsFromState() {
   const s = state.settings || {};
@@ -476,21 +524,84 @@ function syncSettingsFromState() {
   els.enforceConnection.checked = s.enforceConnection !== false;
   els.autoRotate.checked = s.autoRotate !== false;
   els.saveLocal.checked = s.saveLocal !== false;
+  els.enforceTileBag.checked = s.enforceTileBag !== false;
 }
 function maybeSave() {
   syncSettingsToState();
-  if (state.settings.saveLocal) localStorage.setItem('scrabble-score-tracker-state', JSON.stringify(state));
+  if (state.settings.saveLocal) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function normaliseLoadedState() {
+  if (!state || !Array.isArray(state.board)) return;
+  for (const row of state.board) {
+    for (const cell of row) {
+      if (!cell) continue;
+      cell.letter = cell.letter ? String(cell.letter).toUpperCase().slice(0, 1) : '';
+      cell.blank = cell.blank === true;
+      cell.committed = cell.committed === true;
+    }
+  }
+  if (!Array.isArray(state.players) || !state.players.length) state.players = [{ name:'Player 1', score:0 }, { name:'Player 2', score:0 }];
+  state.players = state.players.map((p, i) => ({ name: p?.name || `Player ${i+1}`, score: Number(p?.score) || 0 }));
+  if (!Array.isArray(state.moves)) state.moves = [];
+  if (!Array.isArray(state.history)) state.history = [];
+  state.active = Math.max(0, Math.min(Number(state.active) || 0, state.players.length - 1));
 }
 function loadSaved() {
   try {
-    const raw = localStorage.getItem('scrabble-score-tracker-state');
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return false;
     const parsed = JSON.parse(raw);
     if (!parsed.players || !parsed.board) return false;
     state = parsed;
-    if (!state.settings) state.settings = { enforceCenter: true, enforceConnection: true, autoRotate: true, saveLocal: true };
+    state.settings = { enforceCenter: true, enforceConnection: true, autoRotate: true, saveLocal: true, enforceTileBag: true, ...(state.settings || {}) };
+    normaliseLoadedState();
     return true;
   } catch (e) { return false; }
+}
+
+function tileKeyForCell(cell) { return cell.blank === true ? 'BLANK' : String(cell.letter || '').toUpperCase(); }
+function countBoardTiles(includePending = true) {
+  const counts = Object.fromEntries(Object.keys(TILE_DISTRIBUTION).map(letter => [letter, 0]));
+  for (const row of state.board) {
+    for (const cell of row) {
+      if (!cell.letter) continue;
+      if (!includePending && !cell.committed) continue;
+      const key = tileKeyForCell(cell);
+      if (counts[key] !== undefined) counts[key] += 1;
+    }
+  }
+  return counts;
+}
+function getTileBagStatus(includePending = true) {
+  const used = countBoardTiles(includePending);
+  const rows = Object.entries(TILE_DISTRIBUTION).map(([letter, data]) => {
+    const usedCount = used[letter] || 0;
+    const remaining = data.count - usedCount;
+    return { letter, ...data, used: usedCount, remaining };
+  });
+  const exceeded = rows.filter(row => row.remaining < 0);
+  const totalUsed = rows.reduce((sum, row) => sum + row.used, 0);
+  return { rows, exceeded, totalUsed, totalRemaining: TOTAL_TILES - totalUsed };
+}
+function renderTileBag() {
+  const status = getTileBagStatus(true);
+  const warning = status.exceeded.length ? ` · over limit: ${status.exceeded.map(x => x.letter === 'BLANK' ? 'blank' : x.letter).join(', ')}` : '';
+  els.bagSummary.innerHTML = `<span>${status.totalRemaining} / ${TOTAL_TILES} tiles remaining</span><span>${status.totalUsed} used${warning}</span>`;
+  const ordered = ['BLANK','E','A','I','O','N','R','T','L','S','U','D','G','B','C','M','P','F','H','V','W','Y','K','J','X','Q','Z'];
+  els.tileBag.innerHTML = ordered.map(letter => {
+    const data = status.rows.find(row => row.letter === letter);
+    const name = letter === 'BLANK' ? 'Blank' : letter;
+    const countClass = data.remaining < 0 ? 'warning' : data.remaining === 0 ? 'empty' : '';
+    return `<div class="tile-row" title="${escapeHTML(name)}: ${data.count} tile${data.count === 1 ? '' : 's'}, ${data.score} point${data.score === 1 ? '' : 's'} each">
+      <span><span class="tile-letter">${escapeHTML(name)}</span> <span class="tile-points">${data.score} pt</span></span>
+      <span class="tile-count ${countClass}">${data.remaining}</span>
+    </div>`;
+  }).join('');
+}
+function tileBagExceededMessage() {
+  const status = getTileBagStatus(true);
+  if (!status.exceeded.length) return '';
+  return 'Tile bag exceeded: ' + status.exceeded.map(x => `${x.letter === 'BLANK' ? 'blank' : x.letter} used ${x.used}/${x.count}`).join(', ') + '.';
 }
 
 function render() {
@@ -500,6 +611,7 @@ function render() {
   renderScoreboard();
   renderPlayerEditor();
   renderMoves();
+  renderTileBag();
   updatePreview();
   maybeSave();
 }
@@ -608,7 +720,9 @@ document.addEventListener('keydown', (e) => {
   if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
   if (isLetter(e.key)) {
     e.preventDefault();
-    placeLetter(selected.r, selected.c, e.key, e.key === e.key.toLowerCase());
+    const useBlank = !!els.blankMode?.checked;
+    placeLetter(selected.r, selected.c, e.key, useBlank);
+    if (els.blankMode) els.blankMode.checked = false;
     moveSelection(0, 1);
     updatePreview(); maybeSave();
   } else if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -655,6 +769,10 @@ function calculateMove() {
   syncSettingsToState();
   const newList = pendingCoords();
   if (!newList.length) return { valid: false, score: 0, status: 'Place tiles to score.', breakdown: 'Place tiles to preview a score.' };
+  if (state.settings.enforceTileBag) {
+    const bagMessage = tileBagExceededMessage();
+    if (bagMessage) return { valid:false, score:0, status:'Tile bag exceeded.', breakdown: bagMessage + ' Remove a tile or turn off tile-bag enforcement in Settings.' };
+  }
   const existing = committedExists();
   if (!existing && state.settings.enforceCenter && !newList.some(({r,c}) => keyOf(r,c) === CENTER)) {
     return { valid:false, score:0, status:'First move must cover centre.', breakdown:'The first move must include the centre star at row 8, column 8.' };
@@ -740,25 +858,26 @@ function undoLast() {
 }
 function placeWordFromForm() {
   const wordRaw = els.wordInput.value.trim();
-  const word = sanitiseWord(wordRaw);
-  if (!word) { flashBreakdown('Type a word first.'); return; }
+  const tiles = parseWordTiles(wordRaw);
+  const word = tiles.map(t => t.letter).join('');
+  if (!tiles.length) { flashBreakdown('Type a word first.'); return; }
   const r0 = Math.max(1, Math.min(15, Number(els.rowInput.value) || 1)) - 1;
   const c0 = Math.max(1, Math.min(15, Number(els.colInput.value) || 1)) - 1;
   const dir = els.directionInput.value;
   const dr = dir === 'V' ? 1 : 0;
   const dc = dir === 'H' ? 1 : 0;
-  const endR = r0 + dr * (word.length - 1), endC = c0 + dc * (word.length - 1);
+  const endR = r0 + dr * (tiles.length - 1), endC = c0 + dc * (tiles.length - 1);
   if (!inBounds(endR, endC)) { flashBreakdown('That word runs off the board.'); return; }
   state.history.push(cloneState());
-  for (let i=0; i<word.length; i++) {
-    const r = r0 + dr*i, c = c0 + dc*i, ch = word[i];
+  for (let i=0; i<tiles.length; i++) {
+    const r = r0 + dr*i, c = c0 + dc*i, tile = tiles[i];
     const cell = cellAt(r,c);
-    if (cell.letter && cell.letter !== ch.toUpperCase()) { state = state.history.pop(); flashBreakdown(`Conflict at row ${r+1}, column ${c+1}.`); render(); return; }
+    if (cell.letter && cell.letter !== tile.letter) { state = state.history.pop(); flashBreakdown(`Conflict at row ${r+1}, column ${c+1}.`); render(); return; }
   }
-  for (let i=0; i<word.length; i++) {
-    const r = r0 + dr*i, c = c0 + dc*i, ch = wordRaw.replace(/[^a-zA-Z]/g, '')[i] || word[i];
+  for (let i=0; i<tiles.length; i++) {
+    const r = r0 + dr*i, c = c0 + dc*i, tile = tiles[i];
     const cell = cellAt(r,c);
-    if (!cell.letter) placeLetter(r,c,ch, ch === ch.toLowerCase());
+    if (!cell.letter) placeLetter(r,c,tile.letter,tile.blank);
   }
   selected = {r:endR, c:endC};
   render();
@@ -781,22 +900,9 @@ function addQuickScore() {
   els.quickWord.value = ''; els.quickScore.value = '';
   render();
 }
-function loadWorkbookTotals() {
-  state.history.push(cloneState());
-  state.players = IMPORTED.players.map(p => ({ name:p.name, score:p.score }));
-  state.active = 0;
-  state.board = createEmptyBoard();
-  state.moves = [];
-  for (const turn of IMPORTED.moves) {
-    for (const ent of turn.entries) {
-      state.moves.push({ player: ent.player, score: ent.score, word: ent.word, type: 'Imported workbook row ' + turn.turn, detail: 'Imported from Scrabble Workbook.xlsx', time: '' });
-    }
-  }
-  render();
-}
 function newBlankGame() {
   if (!confirm('Start a blank game? This clears the board, scores and move log in this browser.')) return;
-  state = createBlankState(true);
+  state = createBlankState();
   render();
 }
 function addPlayer() {
@@ -823,16 +929,10 @@ function importGame() {
     state.history.push(cloneState());
     state = parsed;
     if (!state.history) state.history = [];
-    if (!state.settings) state.settings = { enforceCenter:true, enforceConnection:true, autoRotate:true, saveLocal:true };
+    state.settings = { enforceCenter:true, enforceConnection:true, autoRotate:true, saveLocal:true, enforceTileBag:true, ...(state.settings || {}) };
     render();
   } catch (e) { alert('Could not import that JSON: ' + e.message); }
 }
-function renderImportedSummary() {
-  const totalRows = IMPORTED.players.map(p => `<tr><td>${escapeHTML(p.name)}</td><td>${p.score}</td></tr>`).join('');
-  const firstTurns = IMPORTED.moves.slice(0, 4).map(t => `<tr><td>Turn ${t.turn}</td><td>${t.entries.map(e => `${escapeHTML(e.player)}: ${escapeHTML(e.word)} (${e.score})`).join('<br>')}</td></tr>`).join('');
-  document.getElementById('importedSummary').innerHTML = `<table class="import-table"><thead><tr><th>Player</th><th>Total</th></tr></thead><tbody>${totalRows}</tbody></table><h3>Sample imported rows</h3><table class="import-table"><tbody>${firstTurns}</tbody></table>`;
-}
-
 // Events
 els.activePlayer.addEventListener('change', e => { state.active = Number(e.target.value) || 0; render(); });
 document.getElementById('commitBtn').addEventListener('click', commitMove);
@@ -842,13 +942,12 @@ document.getElementById('placeWordBtn').addEventListener('click', placeWordFromF
 document.getElementById('calcBasicBtn').addEventListener('click', () => { els.quickScore.value = basicLetterScore(els.quickWord.value); });
 document.getElementById('addQuickBtn').addEventListener('click', addQuickScore);
 document.getElementById('addPlayerBtn').addEventListener('click', addPlayer);
-document.getElementById('loadWorkbookBtn').addEventListener('click', loadWorkbookTotals);
 document.getElementById('newGameBtn').addEventListener('click', newBlankGame);
 document.getElementById('exportBtn').addEventListener('click', exportGame);
 document.getElementById('printBtn').addEventListener('click', () => window.print());
 document.getElementById('importBtn').addEventListener('click', importGame);
-document.getElementById('wipeSaveBtn').addEventListener('click', () => { localStorage.removeItem('scrabble-score-tracker-state'); alert('Browser save cleared.'); });
-[els.enforceCenter, els.enforceConnection, els.autoRotate, els.saveLocal].forEach(x => x.addEventListener('change', () => { syncSettingsToState(); maybeSave(); updatePreview(); }));
+document.getElementById('wipeSaveBtn').addEventListener('click', () => { [STORAGE_KEY, ...LEGACY_STORAGE_KEYS].forEach(k => localStorage.removeItem(k)); alert('Browser save cleared.'); });
+[els.enforceCenter, els.enforceConnection, els.autoRotate, els.saveLocal, els.enforceTileBag].forEach(x => x.addEventListener('change', () => { syncSettingsToState(); maybeSave(); renderTileBag(); updatePreview(); }));
 ['rowInput','colInput'].forEach(id => document.getElementById(id).addEventListener('change', () => selectCell((Number(els.rowInput.value)||1)-1, (Number(els.colInput.value)||1)-1)));
 
 document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
@@ -860,18 +959,12 @@ document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', (
 const helpDialog = document.getElementById('helpDialog');
 document.getElementById('helpBtn').addEventListener('click', () => helpDialog.showModal());
 document.getElementById('closeHelpBtn').addEventListener('click', () => helpDialog.close());
-const importedDialog = document.getElementById('importedDialog');
-document.getElementById('modalLoadWorkbook').addEventListener('click', () => { loadWorkbookTotals(); importedDialog.close(); });
-document.getElementById('modalBlank').addEventListener('click', () => { state = createBlankState(true); render(); importedDialog.close(); });
-document.getElementById('modalClose').addEventListener('click', () => importedDialog.close());
 
 (function init() {
   const hadSave = loadSaved();
-  if (!hadSave) state = createBlankState(true);
+  if (!hadSave) state = createBlankState();
   selected = {r:7,c:7};
-  renderImportedSummary();
   render();
-  if (!hadSave && IMPORTED.players.length) setTimeout(() => importedDialog.showModal(), 250);
 })();
 </script>
 </body>
