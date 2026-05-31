@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scrabble Score Tracker</title>
+<style>
+  :root {
+    --bg: #f5f1e8;
+    --panel: #fffaf0;
+    --panel-2: #ffffff;
+    --ink: #2a2118;
+    --muted: #736758;
+    --line: #ddcfb8;
+    --accent: #5b2fb9;
+    --accent-2: #7a4df0;
+    --accent-soft: #eee7ff;
+    --tile: #f7d78b;
+    --tile-edge: #b9782f;
+    --new: #d7f8c6;
+    --new-edge: #3c8c4a;
+    --danger: #b42318;
+    --ok: #247a3a;
+    --shadow: 0 14px 40px rgba(64, 42, 20, 0.13);
+    --radius: 20px;
+    --board-size: min(92vw, 680px);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at top left, rgba(122, 77, 240, 0.16), transparent 36rem),
+      linear-gradient(135deg, #fff8e8 0%, var(--bg) 48%, #ebe2d2 100%);
+    min-height: 100vh;
+  }
+  header {
+    padding: 24px clamp(16px, 4vw, 44px) 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .brand h1 { margin: 0 0 6px; font-size: clamp(28px, 4vw, 48px); letter-spacing: -0.04em; }
+  .brand p { margin: 0; max-width: 760px; color: var(--muted); line-height: 1.45; }
+  .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  button, input, select, textarea { font: inherit; }
+  button {
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 15px;
+    background: var(--ink);
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 7px 18px rgba(42, 33, 24, 0.18);
+    transition: transform .13s ease, box-shadow .13s ease, background .13s ease;
+    user-select: none;
+  }
+  button:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(42, 33, 24, 0.22); }
+  button:active { transform: translateY(0); }
+  button.secondary { background: #ffffff; color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+  button.ghost { background: transparent; color: var(--accent); box-shadow: none; border: 1px solid rgba(91,47,185,.22); }
+  button.danger { background: var(--danger); }
+  button.good { background: var(--ok); }
+  button.small { padding: 7px 10px; font-size: 13px; }
+  button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  main {
+    padding: 8px clamp(12px, 3vw, 32px) 32px;
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(320px, 480px);
+    gap: 18px;
+    align-items: start;
+  }
+  .board-wrap, .sidebar { min-width: 0; }
+  .card {
+    background: rgba(255, 250, 240, 0.92);
+    border: 1px solid rgba(221, 207, 184, 0.9);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(8px);
+  }
+  .board-card { padding: clamp(12px, 2vw, 22px); }
+  .top-strip { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .turn-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 800;
+  }
+  .turn-pill select {
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font-weight: 800;
+    outline: none;
+    max-width: 180px;
+  }
+  .score-preview {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding: 10px 12px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius: 16px;
+  }
+  .score-preview .big { font-size: 26px; font-weight: 900; color: var(--accent); }
+  .board-grid {
+    width: var(--board-size);
+    height: var(--board-size);
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: repeat(15, 1fr);
+    grid-template-rows: repeat(15, 1fr);
+    gap: clamp(1px, .23vw, 3px);
+    background: #7f6546;
+    padding: clamp(3px, .7vw, 8px);
+    border-radius: 18px;
+    border: 8px solid #6d4f2f;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.15), 0 18px 50px rgba(39, 28, 17, .25);
+    margin: 0 auto;
+    touch-action: manipulation;
+  }
+  .cell {
+    position: relative;
+    border: 0;
+    padding: 0;
+    min-width: 0;
+    min-height: 0;
+    border-radius: clamp(3px, .55vw, 9px);
+    background: #e2cda8;
+    color: rgba(42,33,24,.74);
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: clamp(8px, 1.5vw, 13px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.08);
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .cell:hover { outline: 2px solid rgba(91,47,185,.45); outline-offset: -2px; }
+  .cell.selected { outline: 3px solid var(--accent); outline-offset: -2px; }
+  .cell.tw { background: #b83446; color: #fff; }
+  .cell.dw { background: #f1a1a6; color: #5f1b25; }
+  .cell.tl { background: #2f72c8; color: #fff; }
+  .cell.dl { background: #9bd1ee; color: #124e71; }
+  .cell.center { background: #f1a1a6; color: #5f1b25; }
+  .cell.consumed { background: #d6bd93; color: #6f5d49; }
+  .cell.new-tile { background: var(--new); box-shadow: inset 0 0 0 2px var(--new-edge), inset 0 -2px 0 rgba(0,0,0,.08); }
+  .tile {
+    width: 86%; height: 86%; border-radius: 7px;
+    display:flex; align-items:center; justify-content:center;
+    background: var(--tile);
+    border: 2px solid var(--tile-edge);
+    color: #3b260e;
+    font-size: clamp(14px, 2.8vw, 31px);
+    line-height: 1;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), 0 2px 2px rgba(0,0,0,.18);
+    position: relative;
+    text-transform: uppercase;
+  }
+  .new-tile .tile { background: #dffccf; border-color: var(--new-edge); }
+  .tile small {
+    position: absolute; right: 4px; bottom: 2px;
+    font-size: clamp(7px, 1.1vw, 10px);
+    font-weight: 900;
+  }
+  .blank-dot { position:absolute; left:4px; top:3px; font-size:10px; color:#2f7b3d; }
+  .sidebar { display: grid; gap: 14px; }
+  .panel { padding: 16px; }
+  .panel h2 { margin: 0 0 10px; font-size: 19px; letter-spacing: -0.02em; }
+  .panel h3 { margin: 12px 0 8px; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .field { display:grid; gap:5px; flex:1 1 120px; }
+  label { font-size: 12px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+  input, select, textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: white;
+    color: var(--ink);
+    border-radius: 12px;
+    padding: 10px 11px;
+    outline: none;
+  }
+  textarea { min-height: 96px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(91,47,185,.11); }
+  .scoreboard { display:grid; gap:8px; }
+  .player-line {
+    display:grid;
+    grid-template-columns: auto 1fr auto;
+    gap:9px;
+    align-items:center;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 9px 10px;
+  }
+  .rank {
+    width:30px; height:30px; display:flex; align-items:center; justify-content:center;
+    border-radius:50%; background:var(--accent-soft); color:var(--accent); font-weight:900;
+  }
+  .player-name { font-weight: 850; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player-score { font-size: 22px; font-weight: 950; }
+  .leader { border-color: rgba(91,47,185,.46); box-shadow: 0 0 0 4px rgba(91,47,185,.08); }
+  .bar { grid-column: 2 / 4; height: 8px; border-radius: 999px; background: #eadfcd; overflow: hidden; }
+  .bar span { display:block; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius:999px; }
+  .move-log { max-height: 320px; overflow:auto; display:grid; gap:8px; padding-right: 3px; }
+  .move { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+  .move strong { color: var(--accent); }
+  .move .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .breakdown {
+    background: #fff;
+    border: 1px dashed rgba(91,47,185,.35);
+    border-radius: 14px;
+    padding: 10px;
+    color: var(--muted);
+    line-height: 1.4;
+    font-size: 13px;
+    max-height: 130px;
+    overflow:auto;
+  }
+  .breakdown b { color: var(--ink); }
+  .notice {
+    background: #fff8d8;
+    border: 1px solid #ead27a;
+    color: #6b4c0b;
+    border-radius: 14px;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .danger-text { color: var(--danger); font-weight: 800; }
+  .ok-text { color: var(--ok); font-weight: 800; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .tab { background:#fff; color:var(--ink); border:1px solid var(--line); box-shadow:none; }
+  .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .settings-grid { display:grid; gap:8px; }
+  .check { display:flex; gap:8px; align-items:flex-start; font-size: 13px; color: var(--muted); line-height:1.35; }
+  .check input { width:auto; margin-top:2px; }
+  .kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background:#eee6d8; border:1px solid #d4c2a7; border-radius:7px; padding:1px 5px; font-size:12px; color:#4a3926;
+  }
+  dialog { border: 0; border-radius: 24px; padding: 0; box-shadow: 0 30px 90px rgba(0,0,0,.35); max-width: min(740px, 92vw); }
+  dialog::backdrop { background: rgba(20,14,8,.45); backdrop-filter: blur(3px); }
+  .modal-body { padding: 22px; background: var(--panel); }
+  .modal-body h2 { margin-top: 0; }
+  .import-table { width:100%; border-collapse:collapse; font-size: 13px; background:#fff; border-radius:14px; overflow:hidden; }
+  .import-table th, .import-table td { padding:8px; border-bottom:1px solid var(--line); text-align:left; }
+  .import-table th { background:var(--accent-soft); color:var(--accent); }
+  .hidden { display:none !important; }
+  @media (max-width: 980px) {
+    main { grid-template-columns: 1fr; }
+    .sidebar { grid-template-columns: minmax(0, 1fr); }
+    header { align-items: flex-start; }
+  }
+  @media (max-width: 520px) {
+    :root { --board-size: 96vw; }
+    main { padding-inline: 6px; }
+    .board-card { padding: 8px; border-radius: 14px; }
+    .board-grid { border-width: 4px; border-radius: 11px; gap:1px; padding:3px; }
+    .cell { border-radius: 3px; font-size: 6px; }
+    .tile { border-radius: 4px; font-size: 17px; }
+    .tile small { right:2px; bottom:1px; font-size:7px; }
+  }
+  @media print {
+    body { background:#fff; } header .header-actions, .board-card, .tabs, .panel.controls { display:none; }
+    main { display:block; } .card { box-shadow:none; border:1px solid #ccc; margin-bottom:12px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>Scrabble Score Tracker</h1>
+    <p>Type letters onto the 15 × 15 board, or place a whole word from a starting square. The app applies letter and word bonuses, adds cross-words, rotates turns, and keeps each player’s score. It does not check whether a word is legal in the dictionary, because apparently that job still belongs to whoever is most annoying at the table.</p>
+  </div>
+  <div class="header-actions">
+    <button id="helpBtn" class="secondary">How it works</button>
+    <button id="exportBtn" class="secondary">Export game</button>
+    <button id="printBtn" class="secondary">Print scores</button>
+  </div>
+</header>
+<main>
+  <section class="board-wrap">
+    <div class="card board-card">
+      <div class="top-strip">
+        <div class="turn-pill">Current player <select id="activePlayer"></select></div>
+        <div class="score-preview"><span>Move score</span><span id="scorePreview" class="big">0</span><span id="previewStatus" class="ok-text">Ready</span></div>
+      </div>
+      <div id="board" class="board-grid" aria-label="Scrabble board"></div>
+      <div class="row" style="margin-top:14px; justify-content:center;">
+        <button id="commitBtn" class="good">Commit scored move</button>
+        <button id="clearPendingBtn" class="secondary">Clear pending tiles</button>
+        <button id="undoBtn" class="secondary">Undo last move</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="sidebar">
+    <section class="card panel controls">
+      <div class="tabs">
+        <button class="tab active" data-tab="place">Place word</button>
+        <button class="tab" data-tab="quick">Quick score</button>
+        <button class="tab" data-tab="players">Players</button>
+        <button class="tab" data-tab="settings">Settings</button>
+      </div>
+
+      <div id="tab-place" class="tab-panel active">
+        <h2>Place a word on the board</h2>
+        <div class="row">
+          <div class="field"><label>Word</label><input id="wordInput" placeholder="e.g. QUIZ" autocomplete="off" /></div>
+          <div class="field" style="max-width:105px"><label>Direction</label><select id="directionInput"><option value="H">Across</option><option value="V">Down</option></select></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="field"><label>Start row</label><input id="rowInput" type="number" min="1" max="15" value="8" /></div>
+          <div class="field"><label>Start column</label><input id="colInput" type="number" min="1" max="15" value="8" /></div>
+          <button id="placeWordBtn" style="align-self:end">Place word</button>
+        </div>
+        <p style="color:var(--muted); line-height:1.45; margin-bottom:0;">Tip: click a square to set the starting position. You can also click an empty square and type letters one by one. Use <span class="kbd">Backspace</span> to remove a pending tile. Lowercase letters are treated as blank tiles worth 0.</p>
+      </div>
+
+      <div id="tab-quick" class="tab-panel">
+        <h2>Quick score entry</h2>
+        <div class="notice">Use this when you only want the spreadsheet-style tracker, or when someone insists on scoring manually because they “know the rules”.</div>
+        <div class="row" style="margin-top:10px">
+          <div class="field"><label>Word / note</label><input id="quickWord" placeholder="e.g. PRIVY" /></div>
+          <div class="field"><label>Score</label><input id="quickScore" type="number" placeholder="auto" /></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="calcBasicBtn" class="secondary">Basic letter score</button>
+          <button id="addQuickBtn">Add quick score</button>
+        </div>
+      </div>
+
+      <div id="tab-players" class="tab-panel">
+        <h2>Players</h2>
+        <div id="playerEditor" class="settings-grid"></div>
+        <div class="row" style="margin-top:10px">
+          <button id="addPlayerBtn" class="secondary">Add player</button>
+          <button id="loadWorkbookBtn" class="secondary">Load workbook totals</button>
+          <button id="newGameBtn" class="danger">New blank game</button>
+        </div>
+      </div>
+
+      <div id="tab-settings" class="tab-panel">
+        <h2>Rules and data</h2>
+        <div class="settings-grid">
+          <label class="check"><input type="checkbox" id="enforceCenter" checked /> First board move must cover the centre star.</label>
+          <label class="check"><input type="checkbox" id="enforceConnection" checked /> Later moves must connect to an existing tile.</label>
+          <label class="check"><input type="checkbox" id="autoRotate" checked /> Automatically rotate to the next player after committing a move.</label>
+          <label class="check"><input type="checkbox" id="saveLocal" checked /> Save this game in this browser automatically.</label>
+        </div>
+        <h3>Import saved JSON</h3>
+        <textarea id="importBox" placeholder="Paste exported game JSON here"></textarea>
+        <div class="row"><button id="importBtn" class="secondary">Import JSON</button><button id="wipeSaveBtn" class="danger">Clear browser save</button></div>
+      </div>
+    </section>
+
+    <section class="card panel">
+      <h2>Scores</h2>
+      <div id="scoreboard" class="scoreboard"></div>
+    </section>
+
+    <section class="card panel">
+      <h2>Move breakdown</h2>
+      <div id="breakdown" class="breakdown">Place tiles to preview a score.</div>
+    </section>
+
+    <section class="card panel">
+      <h2>Move log</h2>
+      <div id="moveLog" class="move-log"></div>
+    </section>
+  </aside>
+</main>
+
+<dialog id="helpDialog">
+  <div class="modal-body">
+    <h2>How to use this tracker</h2>
+    <p><b>Board scoring:</b> click a square and type letters, or use the “Place word” form. Pending tiles are green. When the preview looks right, click <b>Commit scored move</b>.</p>
+    <p><b>Premium squares:</b> letter/word multipliers apply only to newly placed tiles. Once a move is committed, those bonuses are consumed, just like physical Scrabble.</p>
+    <p><b>Scoring logic:</b> the app scores the main word, any cross-words created by new tiles, and adds the 50-point bingo bonus for 7+ new tiles. It does not validate dictionary legality, challenges, tile bag limits, or end-game rack deductions.</p>
+    <p><b>Workbook import:</b> I imported the players and existing totals from your spreadsheet. Because the spreadsheet does not store board coordinates, the board starts empty even when workbook totals are loaded.</p>
+    <div class="row"><button id="closeHelpBtn">Got it</button></div>
+  </div>
+</dialog>
+
+<dialog id="importedDialog">
+  <div class="modal-body">
+    <h2>Workbook data imported</h2>
+    <p>The original workbook contained these totals. You can load them as starting scores, or start a blank game with the same players.</p>
+    <div id="importedSummary"></div>
+    <div class="row" style="margin-top:14px"><button id="modalLoadWorkbook">Load workbook totals</button><button id="modalBlank" class="secondary">Start blank instead</button><button id="modalClose" class="secondary">Keep current</button></div>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+const IMPORTED = {"players": [{"name": "Khubaib", "score": 213}, {"name": "Grace", "score": 134}, {"name": "Oliver", "score": 148}, {"name": "Prath", "score": 0}, {"name": "Kelly", "score": 0}], "moves": [{"turn": 1, "entries": [{"player": "Khubaib", "word": "Privy", "score": 34}, {"player": "Grace", "word": "Gay", "score": 7}, {"player": "Oliver", "word": "Rare", "score": 5}]}, {"turn": 2, "entries": [{"player": "Khubaib", "word": "Doubter", "score": 20}, {"player": "Grace", "word": "Dew", "score": 14}, {"player": "Oliver", "word": "Via", "score": 6}]}, {"turn": 3, "entries": [{"player": "Khubaib", "word": "Now", "score": 12}, {"player": "Grace", "word": "Gran", "score": 9}, {"player": "Oliver", "word": "Oboe", "score": 7}]}, {"turn": 4, "entries": [{"player": "Khubaib", "word": "Risk", "score": 18}, {"player": "Grace", "word": "Kin", "score": 7}, {"player": "Oliver", "word": "Sail", "score": 8}]}, {"turn": 5, "entries": [{"player": "Khubaib", "word": "Find", "score": 20}, {"player": "Grace", "word": "Scrap", "score": 11}, {"player": "Oliver", "word": "Dine", "score": 15}]}, {"turn": 6, "entries": [{"player": "Khubaib", "word": "Plazas", "score": 34}, {"player": "Grace", "word": "Spits", "score": 16}, {"player": "Oliver", "word": "Fame", "score": 18}]}, {"turn": 7, "entries": [{"player": "Khubaib", "word": "Whose", "score": 14}, {"player": "Grace", "word": "Grant", "score": 12}, {"player": "Oliver", "word": "Jig", "score": 27}]}, {"turn": 8, "entries": [{"player": "Khubaib", "word": "Ab", "score": 13}, {"player": "Grace", "word": "Ex", "score": 25}, {"player": "Oliver", "word": "Hot", "score": 9}]}, {"turn": 9, "entries": [{"player": "Khubaib", "word": "Dew", "score": 7}, {"player": "Grace", "word": "Toga", "score": 7}, {"player": "Oliver", "word": "Lute", "score": 12}]}, {"turn": 10, "entries": [{"player": "Khubaib", "word": "Teen", "score": 12}, {"player": "Grace", "word": "Acer", "score": 9}, {"player": "Oliver", "word": "Rev", "score": 18}]}, {"turn": 11, "entries": [{"player": "Khubaib", "word": "Lie", "score": 5}, {"player": "Grace", "word": "Me", "score": 10}, {"player": "Oliver", "word": "Ate", "score": 4}]}, {"turn": 12, "entries": [{"player": "Khubaib", "word": "Ole", "score": 3}, {"player": "Grace", "word": "Nate", "score": 5}, {"player": "Oliver", "word": "Do", "score": 3}]}, {"turn": 13, "entries": [{"player": "Khubaib", "word": "Qi", "score": 21}, {"player": "Grace", "word": "Us", "score": 2}, {"player": "Oliver", "word": "Teeny", "score": 16}]}]};
+const SIZE = 15;
+const CENTER = '7,7';
+const TILE_VALUES = { A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10 };
+const PREMIUMS = new Map();
+function setPremium(type, coords) { coords.forEach(([r,c]) => PREMIUMS.set(`${r},${c}`, type)); }
+setPremium('tw', [[0,0],[0,7],[0,14],[7,0],[7,14],[14,0],[14,7],[14,14]]);
+setPremium('dw', [[1,1],[2,2],[3,3],[4,4],[7,7],[10,10],[11,11],[12,12],[13,13],[1,13],[2,12],[3,11],[4,10],[10,4],[11,3],[12,2],[13,1]]);
+setPremium('tl', [[1,5],[1,9],[5,1],[5,5],[5,9],[5,13],[9,1],[9,5],[9,9],[9,13],[13,5],[13,9]]);
+setPremium('dl', [[0,3],[0,11],[2,6],[2,8],[3,0],[3,7],[3,14],[6,2],[6,6],[6,8],[6,12],[7,3],[7,11],[8,2],[8,6],[8,8],[8,12],[11,0],[11,7],[11,14],[12,6],[12,8],[14,3],[14,11]]);
+
+const els = {
+  board: document.getElementById('board'), activePlayer: document.getElementById('activePlayer'), scoreboard: document.getElementById('scoreboard'),
+  scorePreview: document.getElementById('scorePreview'), previewStatus: document.getElementById('previewStatus'), breakdown: document.getElementById('breakdown'),
+  moveLog: document.getElementById('moveLog'), playerEditor: document.getElementById('playerEditor'), wordInput: document.getElementById('wordInput'),
+  rowInput: document.getElementById('rowInput'), colInput: document.getElementById('colInput'), directionInput: document.getElementById('directionInput'),
+  quickWord: document.getElementById('quickWord'), quickScore: document.getElementById('quickScore'), importBox: document.getElementById('importBox'),
+  enforceCenter: document.getElementById('enforceCenter'), enforceConnection: document.getElementById('enforceConnection'), autoRotate: document.getElementById('autoRotate'), saveLocal: document.getElementById('saveLocal')
+};
+
+let state = createBlankState(false);
+let selected = { r: 7, c: 7 };
+let lastPreview = null;
+
+function createEmptyBoard() {
+  return Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => ({ letter: '', blank: false, committed: false })));
+}
+function createBlankState(useImportedNames = true) {
+  const names = useImportedNames ? IMPORTED.players.map(p => p.name) : ['Player 1', 'Player 2'];
+  return {
+    players: names.map(n => ({ name: n, score: 0 })),
+    active: 0,
+    board: createEmptyBoard(),
+    moves: [],
+    history: [],
+    createdAt: new Date().toISOString(),
+    settings: { enforceCenter: true, enforceConnection: true, autoRotate: true, saveLocal: true }
+  };
+}
+function cloneState(obj = state) { return JSON.parse(JSON.stringify(obj)); }
+function keyOf(r,c) { return `${r},${c}`; }
+function inBounds(r,c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
+function cellAt(r,c) { return state.board[r][c]; }
+function isOccupied(r,c) { return inBounds(r,c) && !!cellAt(r,c).letter; }
+function isNew(r,c) { const cell = cellAt(r,c); return !!cell.letter && !cell.committed; }
+function committedExists() { return state.board.some(row => row.some(cell => cell.letter && cell.committed)); }
+function hasPendingTiles() { return state.board.some(row => row.some(cell => cell.letter && !cell.committed)); }
+function pendingCoords() {
+  const list = [];
+  for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++) if (isNew(r,c)) list.push({r,c});
+  return list;
+}
+function safeName(i) { return state.players[i]?.name || `Player ${i+1}`; }
+function currentPlayer() { return state.players[state.active] || state.players[0]; }
+function premiumLabel(type) { return {tw:'TW', dw:'DW', tl:'TL', dl:'DL'}[type] || ''; }
+function baseLetterScore(cell) { return cell.blank ? 0 : (TILE_VALUES[cell.letter] || 0); }
+function isLetter(ch) { return /^[a-zA-Z]$/.test(ch); }
+function sanitiseWord(word) { return (word || '').replace(/[^a-zA-Z]/g, ''); }
+function escapeHTML(str) { return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+function syncSettingsToState() {
+  state.settings.enforceCenter = els.enforceCenter.checked;
+  state.settings.enforceConnection = els.enforceConnection.checked;
+  state.settings.autoRotate = els.autoRotate.checked;
+  state.settings.saveLocal = els.saveLocal.checked;
+}
+function syncSettingsFromState() {
+  const s = state.settings || {};
+  els.enforceCenter.checked = s.enforceCenter !== false;
+  els.enforceConnection.checked = s.enforceConnection !== false;
+  els.autoRotate.checked = s.autoRotate !== false;
+  els.saveLocal.checked = s.saveLocal !== false;
+}
+function maybeSave() {
+  syncSettingsToState();
+  if (state.settings.saveLocal) localStorage.setItem('scrabble-score-tracker-state', JSON.stringify(state));
+}
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem('scrabble-score-tracker-state');
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (!parsed.players || !parsed.board) return false;
+    state = parsed;
+    if (!state.settings) state.settings = { enforceCenter: true, enforceConnection: true, autoRotate: true, saveLocal: true };
+    return true;
+  } catch (e) { return false; }
+}
+
+function render() {
+  syncSettingsFromState();
+  renderBoard();
+  renderPlayerSelect();
+  renderScoreboard();
+  renderPlayerEditor();
+  renderMoves();
+  updatePreview();
+  maybeSave();
+}
+function renderBoard() {
+  els.board.innerHTML = '';
+  for (let r=0; r<SIZE; r++) {
+    for (let c=0; c<SIZE; c++) {
+      const cell = cellAt(r,c);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cell';
+      btn.dataset.r = r; btn.dataset.c = c;
+      const premium = PREMIUMS.get(keyOf(r,c));
+      if (!cell.letter && premium) btn.classList.add(premium);
+      if (keyOf(r,c) === CENTER && !cell.letter) btn.classList.add('center');
+      if (cell.letter && cell.committed) btn.classList.add('consumed');
+      if (cell.letter && !cell.committed) btn.classList.add('new-tile');
+      if (selected.r === r && selected.c === c) btn.classList.add('selected');
+      btn.title = `Row ${r+1}, Column ${c+1}${premium ? ' · ' + premiumLabel(premium) : ''}`;
+      if (cell.letter) {
+        const tile = document.createElement('span');
+        tile.className = 'tile';
+        tile.textContent = cell.letter;
+        const score = document.createElement('small');
+        score.textContent = baseLetterScore(cell);
+        tile.appendChild(score);
+        if (cell.blank) { const dot = document.createElement('span'); dot.className='blank-dot'; dot.textContent='•'; tile.appendChild(dot); }
+        btn.appendChild(tile);
+      } else {
+        btn.textContent = premium ? premiumLabel(premium) : '';
+      }
+      btn.addEventListener('click', () => selectCell(r,c));
+      els.board.appendChild(btn);
+    }
+  }
+}
+function renderPlayerSelect() {
+  const prev = String(state.active);
+  els.activePlayer.innerHTML = state.players.map((p,i) => `<option value="${i}">${escapeHTML(p.name)}</option>`).join('');
+  els.activePlayer.value = state.players[Number(prev)] ? prev : String(Math.min(state.active, state.players.length - 1));
+}
+function renderScoreboard() {
+  const max = Math.max(1, ...state.players.map(p => Number(p.score) || 0));
+  const sorted = state.players.map((p,i) => ({...p, i})).sort((a,b) => b.score - a.score);
+  els.scoreboard.innerHTML = sorted.map((p,idx) => `
+    <div class="player-line ${idx === 0 ? 'leader' : ''}">
+      <div class="rank">${idx+1}</div>
+      <div class="player-name">${escapeHTML(p.name)}${p.i === state.active ? ' · up now' : ''}</div>
+      <div class="player-score">${p.score}</div>
+      <div class="bar"><span style="width:${Math.min(100, (p.score / max) * 100)}%"></span></div>
+    </div>`).join('');
+}
+function renderPlayerEditor() {
+  els.playerEditor.innerHTML = state.players.map((p,i) => `
+    <div class="row" data-player-row="${i}">
+      <div class="field"><label>Name</label><input data-name-index="${i}" value="${escapeHTML(p.name)}" /></div>
+      <div class="field" style="max-width:110px"><label>Score</label><input data-score-index="${i}" type="number" value="${Number(p.score) || 0}" /></div>
+      <button class="secondary small" data-remove-index="${i}" ${state.players.length <= 1 ? 'disabled' : ''}>Remove</button>
+    </div>`).join('');
+  els.playerEditor.querySelectorAll('[data-name-index]').forEach(inp => inp.addEventListener('change', e => {
+    const i = Number(e.target.dataset.nameIndex); state.players[i].name = e.target.value.trim() || `Player ${i+1}`; render();
+  }));
+  els.playerEditor.querySelectorAll('[data-score-index]').forEach(inp => inp.addEventListener('change', e => {
+    const i = Number(e.target.dataset.scoreIndex); state.players[i].score = Number(e.target.value) || 0; render();
+  }));
+  els.playerEditor.querySelectorAll('[data-remove-index]').forEach(btn => btn.addEventListener('click', e => {
+    const i = Number(e.target.dataset.removeIndex); state.history.push(cloneState()); state.players.splice(i,1); state.active = Math.max(0, Math.min(state.active, state.players.length - 1)); render();
+  }));
+}
+function renderMoves() {
+  if (!state.moves.length) { els.moveLog.innerHTML = '<div class="notice">No moves yet.</div>'; return; }
+  els.moveLog.innerHTML = state.moves.slice().reverse().map((m, idx) => `
+    <div class="move">
+      <strong>${escapeHTML(m.player)} +${m.score}</strong> ${m.word ? 'for ' + escapeHTML(m.word) : ''}
+      <div class="meta">${escapeHTML(m.type || 'Board move')} · ${escapeHTML(m.time || '')}</div>
+      ${m.detail ? `<div class="meta">${escapeHTML(m.detail)}</div>` : ''}
+    </div>`).join('');
+}
+
+function selectCell(r,c) {
+  selected = { r, c };
+  els.rowInput.value = r + 1;
+  els.colInput.value = c + 1;
+  renderBoard();
+}
+function moveSelection(dr,dc) {
+  selected.r = Math.max(0, Math.min(SIZE-1, selected.r + dr));
+  selected.c = Math.max(0, Math.min(SIZE-1, selected.c + dc));
+  els.rowInput.value = selected.r + 1; els.colInput.value = selected.c + 1; renderBoard();
+}
+function placeLetter(r,c,ch,blank=false) {
+  if (!inBounds(r,c)) return;
+  const cell = cellAt(r,c);
+  if (cell.committed) return;
+  cell.letter = ch.toUpperCase();
+  cell.blank = !!blank;
+  cell.committed = false;
+}
+function removePending(r,c) {
+  if (!inBounds(r,c)) return;
+  const cell = cellAt(r,c);
+  if (cell.letter && !cell.committed) { cell.letter=''; cell.blank=false; }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  if (isLetter(e.key)) {
+    e.preventDefault();
+    placeLetter(selected.r, selected.c, e.key, e.key === e.key.toLowerCase());
+    moveSelection(0, 1);
+    updatePreview(); maybeSave();
+  } else if (e.key === 'Backspace' || e.key === 'Delete') {
+    e.preventDefault(); removePending(selected.r, selected.c); updatePreview(); renderBoard(); maybeSave();
+  } else if (e.key === 'ArrowRight') { e.preventDefault(); moveSelection(0,1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); moveSelection(0,-1); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); moveSelection(1,0); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); moveSelection(-1,0); }
+});
+
+function getWordCells(r,c,dir) {
+  const delta = dir === 'H' ? [0,1] : [1,0];
+  let sr = r, sc = c;
+  while (inBounds(sr - delta[0], sc - delta[1]) && isOccupied(sr - delta[0], sc - delta[1])) { sr -= delta[0]; sc -= delta[1]; }
+  const cells = [];
+  while (inBounds(sr, sc) && isOccupied(sr, sc)) { cells.push({r:sr, c:sc}); sr += delta[0]; sc += delta[1]; }
+  return cells;
+}
+function wordFromCells(cells) { return cells.map(({r,c}) => cellAt(r,c).letter).join(''); }
+function scoreWordCells(cells) {
+  let subtotal = 0, wordMult = 1;
+  const parts = [];
+  for (const {r,c} of cells) {
+    const cell = cellAt(r,c);
+    const base = baseLetterScore(cell);
+    let letterScore = base;
+    let note = '';
+    if (isNew(r,c)) {
+      const prem = PREMIUMS.get(keyOf(r,c));
+      if (prem === 'dl') { letterScore *= 2; note = 'DL'; }
+      if (prem === 'tl') { letterScore *= 3; note = 'TL'; }
+      if (prem === 'dw') { wordMult *= 2; note = 'DW'; }
+      if (prem === 'tw') { wordMult *= 3; note = 'TW'; }
+    }
+    subtotal += letterScore;
+    parts.push(`${cell.letter}=${letterScore}${note ? ' ('+note+')' : ''}`);
+  }
+  return { word: wordFromCells(cells), subtotal, wordMult, score: subtotal * wordMult, parts };
+}
+function hasCommittedNeighbor(r,c) {
+  return [[1,0],[-1,0],[0,1],[0,-1]].some(([dr,dc]) => inBounds(r+dr,c+dc) && cellAt(r+dr,c+dc).letter && cellAt(r+dr,c+dc).committed);
+}
+function calculateMove() {
+  syncSettingsToState();
+  const newList = pendingCoords();
+  if (!newList.length) return { valid: false, score: 0, status: 'Place tiles to score.', breakdown: 'Place tiles to preview a score.' };
+  const existing = committedExists();
+  if (!existing && state.settings.enforceCenter && !newList.some(({r,c}) => keyOf(r,c) === CENTER)) {
+    return { valid:false, score:0, status:'First move must cover centre.', breakdown:'The first move must include the centre star at row 8, column 8.' };
+  }
+  if (existing && state.settings.enforceConnection && !newList.some(({r,c}) => hasCommittedNeighbor(r,c))) {
+    return { valid:false, score:0, status:'Move is not connected.', breakdown:'At least one new tile must touch an existing committed tile.' };
+  }
+  const rows = [...new Set(newList.map(x => x.r))];
+  const cols = [...new Set(newList.map(x => x.c))];
+  const items = [];
+  let mainDir = 'H';
+  if (newList.length > 1) {
+    if (rows.length === 1) mainDir = 'H';
+    else if (cols.length === 1) mainDir = 'V';
+    else return { valid:false, score:0, status:'Tiles must be in one line.', breakdown:'New tiles must be placed in a single row or a single column.' };
+    if (mainDir === 'H') {
+      const r = rows[0]; const minC = Math.min(...newList.map(x => x.c)); const maxC = Math.max(...newList.map(x => x.c));
+      for (let c=minC; c<=maxC; c++) if (!isOccupied(r,c)) return { valid:false, score:0, status:'Gap in word.', breakdown:'There is an empty square between the new tiles.' };
+    } else {
+      const c = cols[0]; const minR = Math.min(...newList.map(x => x.r)); const maxR = Math.max(...newList.map(x => x.r));
+      for (let r=minR; r<=maxR; r++) if (!isOccupied(r,c)) return { valid:false, score:0, status:'Gap in word.', breakdown:'There is an empty square between the new tiles.' };
+    }
+    const mainCells = getWordCells(newList[0].r, newList[0].c, mainDir);
+    const main = scoreWordCells(mainCells);
+    items.push({ label: 'Main word', ...main });
+    const crossDir = mainDir === 'H' ? 'V' : 'H';
+    for (const pos of newList) {
+      const crossCells = getWordCells(pos.r, pos.c, crossDir);
+      if (crossCells.length > 1) items.push({ label: 'Cross word', ...scoreWordCells(crossCells) });
+    }
+  } else {
+    const pos = newList[0];
+    const h = getWordCells(pos.r,pos.c,'H');
+    const v = getWordCells(pos.r,pos.c,'V');
+    if (h.length > 1) items.push({ label: 'Across word', ...scoreWordCells(h) });
+    if (v.length > 1) items.push({ label: 'Down word', ...scoreWordCells(v) });
+    if (!items.length && !existing) items.push({ label: 'Single tile', ...scoreWordCells([pos]) });
+    if (!items.length) return { valid:false, score:0, status:'No word formed.', breakdown:'A single tile must form at least one word with existing tiles.' };
+  }
+  const wordsScore = items.reduce((sum, item) => sum + item.score, 0);
+  const bonus = newList.length >= 7 ? 50 : 0;
+  const total = wordsScore + bonus;
+  const html = items.map(item => `<b>${escapeHTML(item.label)}:</b> ${escapeHTML(item.word)} = ${item.score} <span style="color:var(--muted)">[${escapeHTML(item.parts.join(' + '))}${item.wordMult > 1 ? ' × word ' + item.wordMult : ''}]</span>`).join('<br>') + (bonus ? `<br><b>Bingo bonus:</b> +50` : '');
+  return { valid:true, score: total, status:'Ready to commit.', breakdown: html, words: items.map(x => x.word).join(', '), tiles: newList.length };
+}
+function updatePreview() {
+  lastPreview = calculateMove();
+  els.scorePreview.textContent = lastPreview.score || 0;
+  els.previewStatus.textContent = lastPreview.status || '';
+  els.previewStatus.className = lastPreview.valid ? 'ok-text' : 'danger-text';
+  els.breakdown.innerHTML = lastPreview.breakdown || 'Place tiles to preview a score.';
+  document.getElementById('commitBtn').disabled = !lastPreview.valid;
+}
+function commitMove() {
+  const preview = calculateMove();
+  if (!preview.valid) { updatePreview(); return; }
+  state.history.push(cloneState());
+  const player = currentPlayer();
+  player.score = (Number(player.score) || 0) + preview.score;
+  for (const {r,c} of pendingCoords()) { cellAt(r,c).committed = true; }
+  state.moves.push({
+    player: player.name,
+    score: preview.score,
+    word: preview.words,
+    type: 'Board move',
+    detail: `${preview.tiles} tile${preview.tiles === 1 ? '' : 's'} placed`,
+    time: new Date().toLocaleString()
+  });
+  if (state.settings.autoRotate && state.players.length) state.active = (state.active + 1) % state.players.length;
+  render();
+}
+function clearPending() {
+  for (const {r,c} of pendingCoords()) { cellAt(r,c).letter = ''; cellAt(r,c).blank = false; }
+  render();
+}
+function undoLast() {
+  const prev = state.history.pop();
+  if (!prev) return;
+  const keepHistory = state.history;
+  state = prev;
+  state.history = keepHistory;
+  render();
+}
+function placeWordFromForm() {
+  const wordRaw = els.wordInput.value.trim();
+  const word = sanitiseWord(wordRaw);
+  if (!word) { flashBreakdown('Type a word first.'); return; }
+  const r0 = Math.max(1, Math.min(15, Number(els.rowInput.value) || 1)) - 1;
+  const c0 = Math.max(1, Math.min(15, Number(els.colInput.value) || 1)) - 1;
+  const dir = els.directionInput.value;
+  const dr = dir === 'V' ? 1 : 0;
+  const dc = dir === 'H' ? 1 : 0;
+  const endR = r0 + dr * (word.length - 1), endC = c0 + dc * (word.length - 1);
+  if (!inBounds(endR, endC)) { flashBreakdown('That word runs off the board.'); return; }
+  state.history.push(cloneState());
+  for (let i=0; i<word.length; i++) {
+    const r = r0 + dr*i, c = c0 + dc*i, ch = word[i];
+    const cell = cellAt(r,c);
+    if (cell.letter && cell.letter !== ch.toUpperCase()) { state = state.history.pop(); flashBreakdown(`Conflict at row ${r+1}, column ${c+1}.`); render(); return; }
+  }
+  for (let i=0; i<word.length; i++) {
+    const r = r0 + dr*i, c = c0 + dc*i, ch = wordRaw.replace(/[^a-zA-Z]/g, '')[i] || word[i];
+    const cell = cellAt(r,c);
+    if (!cell.letter) placeLetter(r,c,ch, ch === ch.toLowerCase());
+  }
+  selected = {r:endR, c:endC};
+  render();
+}
+function flashBreakdown(msg) {
+  els.breakdown.innerHTML = `<span class="danger-text">${escapeHTML(msg)}</span>`;
+}
+function basicLetterScore(word) {
+  return sanitiseWord(word).toUpperCase().split('').reduce((sum,ch) => sum + (TILE_VALUES[ch] || 0), 0);
+}
+function addQuickScore() {
+  const word = els.quickWord.value.trim();
+  let score = Number(els.quickScore.value);
+  if (!Number.isFinite(score) || els.quickScore.value === '') score = basicLetterScore(word);
+  state.history.push(cloneState());
+  const player = currentPlayer();
+  player.score += score;
+  state.moves.push({ player: player.name, score, word, type: 'Quick score', detail: 'Manual/spreadsheet-style entry', time: new Date().toLocaleString() });
+  if (state.settings.autoRotate && state.players.length) state.active = (state.active + 1) % state.players.length;
+  els.quickWord.value = ''; els.quickScore.value = '';
+  render();
+}
+function loadWorkbookTotals() {
+  state.history.push(cloneState());
+  state.players = IMPORTED.players.map(p => ({ name:p.name, score:p.score }));
+  state.active = 0;
+  state.board = createEmptyBoard();
+  state.moves = [];
+  for (const turn of IMPORTED.moves) {
+    for (const ent of turn.entries) {
+      state.moves.push({ player: ent.player, score: ent.score, word: ent.word, type: 'Imported workbook row ' + turn.turn, detail: 'Imported from Scrabble Workbook.xlsx', time: '' });
+    }
+  }
+  render();
+}
+function newBlankGame() {
+  if (!confirm('Start a blank game? This clears the board, scores and move log in this browser.')) return;
+  state = createBlankState(true);
+  render();
+}
+function addPlayer() {
+  state.history.push(cloneState());
+  state.players.push({ name: `Player ${state.players.length + 1}`, score: 0 });
+  render();
+}
+function exportGame() {
+  syncSettingsToState();
+  const data = JSON.stringify(state, null, 2);
+  els.importBox.value = data;
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'scrabble-game-export.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importGame() {
+  try {
+    const parsed = JSON.parse(els.importBox.value);
+    if (!parsed.players || !parsed.board) throw new Error('Missing players or board.');
+    state.history.push(cloneState());
+    state = parsed;
+    if (!state.history) state.history = [];
+    if (!state.settings) state.settings = { enforceCenter:true, enforceConnection:true, autoRotate:true, saveLocal:true };
+    render();
+  } catch (e) { alert('Could not import that JSON: ' + e.message); }
+}
+function renderImportedSummary() {
+  const totalRows = IMPORTED.players.map(p => `<tr><td>${escapeHTML(p.name)}</td><td>${p.score}</td></tr>`).join('');
+  const firstTurns = IMPORTED.moves.slice(0, 4).map(t => `<tr><td>Turn ${t.turn}</td><td>${t.entries.map(e => `${escapeHTML(e.player)}: ${escapeHTML(e.word)} (${e.score})`).join('<br>')}</td></tr>`).join('');
+  document.getElementById('importedSummary').innerHTML = `<table class="import-table"><thead><tr><th>Player</th><th>Total</th></tr></thead><tbody>${totalRows}</tbody></table><h3>Sample imported rows</h3><table class="import-table"><tbody>${firstTurns}</tbody></table>`;
+}
+
+// Events
+els.activePlayer.addEventListener('change', e => { state.active = Number(e.target.value) || 0; render(); });
+document.getElementById('commitBtn').addEventListener('click', commitMove);
+document.getElementById('clearPendingBtn').addEventListener('click', clearPending);
+document.getElementById('undoBtn').addEventListener('click', undoLast);
+document.getElementById('placeWordBtn').addEventListener('click', placeWordFromForm);
+document.getElementById('calcBasicBtn').addEventListener('click', () => { els.quickScore.value = basicLetterScore(els.quickWord.value); });
+document.getElementById('addQuickBtn').addEventListener('click', addQuickScore);
+document.getElementById('addPlayerBtn').addEventListener('click', addPlayer);
+document.getElementById('loadWorkbookBtn').addEventListener('click', loadWorkbookTotals);
+document.getElementById('newGameBtn').addEventListener('click', newBlankGame);
+document.getElementById('exportBtn').addEventListener('click', exportGame);
+document.getElementById('printBtn').addEventListener('click', () => window.print());
+document.getElementById('importBtn').addEventListener('click', importGame);
+document.getElementById('wipeSaveBtn').addEventListener('click', () => { localStorage.removeItem('scrabble-score-tracker-state'); alert('Browser save cleared.'); });
+[els.enforceCenter, els.enforceConnection, els.autoRotate, els.saveLocal].forEach(x => x.addEventListener('change', () => { syncSettingsToState(); maybeSave(); updatePreview(); }));
+['rowInput','colInput'].forEach(id => document.getElementById(id).addEventListener('change', () => selectCell((Number(els.rowInput.value)||1)-1, (Number(els.colInput.value)||1)-1)));
+
+document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+}));
+const helpDialog = document.getElementById('helpDialog');
+document.getElementById('helpBtn').addEventListener('click', () => helpDialog.showModal());
+document.getElementById('closeHelpBtn').addEventListener('click', () => helpDialog.close());
+const importedDialog = document.getElementById('importedDialog');
+document.getElementById('modalLoadWorkbook').addEventListener('click', () => { loadWorkbookTotals(); importedDialog.close(); });
+document.getElementById('modalBlank').addEventListener('click', () => { state = createBlankState(true); render(); importedDialog.close(); });
+document.getElementById('modalClose').addEventListener('click', () => importedDialog.close());
+
+(function init() {
+  const hadSave = loadSaved();
+  if (!hadSave) state = createBlankState(true);
+  selected = {r:7,c:7};
+  renderImportedSummary();
+  render();
+  if (!hadSave && IMPORTED.players.length) setTimeout(() => importedDialog.showModal(), 250);
+})();
+</script>
+</body>
+</html>
